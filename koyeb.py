@@ -83,7 +83,7 @@ def main():
             result = "🎉 登录结果: 成功" if success else f"❌ 登录失败 | 原因: {message}"
             messages.append(f"📧 账户: {email}\n\n{result}")
 
-            time.sleep(5)
+            time.sleep(30)
 
         summary = f"🗓️ 北京时间: {current_time}\n\n" + "\n\n".join(messages) + "\n\n✅ 任务执行完成"
 
