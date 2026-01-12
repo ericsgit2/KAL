@@ -37,22 +37,25 @@ def send_tg_message(message):
     except requests.RequestException as e:
         logging.error(f"❌ 发送 Telegram 消息失败: {e}")
 
-def login_koyeb(email, password):
-    """执行 Koyeb 账户登录"""
-    if not email or not password:
-        return False, "邮箱或密码为空"
+def check_koyeb_token(email, token):
+    """
+    使用 Koyeb API Token 校验账号是否可用
+    访问 /v1/apps，只要返回 200 即视为成功
+    """
+    if not token:
+        return False, "Token 为空"
 
-    login_url = "https://app.koyeb.com/v1/account/login"
+    url = "https://app.koyeb.com/v1/apps"
     headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        "Authorization": f"Bearer {token.strip()}",
+        "Accept": "application/json",
+        "User-Agent": "KoyebTokenChecker/1.0"
     }
-    data = {"email": email.strip(), "password": password}
 
     try:
-        response = requests.post(login_url, headers=headers, json=data, timeout=30)
+        response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
-        return True, "成功"
+        return True, "Token 校验成功"
     except requests.Timeout:
         return False, "请求超时"
     except requests.RequestException as e:
@@ -69,30 +72,24 @@ def main():
         current_time = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M")
         messages = []
 
-        for index, account in enumerate(koyeb_accounts):
-            email = account.get("email", "").strip()
-            password = account.get("password", "")
+        for account in koyeb_accounts:
+            email = account.get("email", "未命名账号")
+            token = account.get("token", "").strip()
 
-            if not email or not password:
-                logging.warning(f"⚠️ 账户信息不完整，跳过: {email}")
+            if not token:
+                logging.warning(f"⚠️ 账户未配置 Token，跳过: {email}")
+                messages.append(f"⚠️ 账户: {email}\nToken 未配置，跳过")
                 continue
 
-            logging.info(f"🔄 正在处理账户: {email}")
-            success, message = login_koyeb(email, password)
+            logging.info(f"🔄 正在检查账户: {email}")
+            success, message = check_koyeb_token(email, token)
 
-            result = "🎉 登录结果: 成功" if success else f"❌ 登录失败 | 原因: {message}"
+            result = "🎉 登录成功（Token）" if success else f"❌ Token 校验失败 | 原因: {message}"
             messages.append(f"📧 账户: {email}\n\n{result}")
 
-            # ⭐ 多账户之间间隔 15 分钟（900 秒）
-            if index < len(koyeb_accounts) - 1:
-                logging.info("⏳ 等待 15 分钟后继续处理下一个账户...")
-                time.sleep(900)
+            time.sleep(5)
 
-        summary = (
-            f"🗓️ 北京时间: {current_time}\n\n" +
-            "\n\n".join(messages) +
-            "\n\n✅ 任务执行完成"
-        )
+        summary = f"🗓️ 北京时间: {current_time}\n\n" + "\n\n".join(messages) + "\n\n✅ 任务执行完成"
 
         logging.info("📋 任务完成，发送 Telegram 通知")
         send_tg_message(summary)
